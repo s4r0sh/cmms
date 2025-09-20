@@ -1,0 +1,15 @@
+// db.js
+const { Pool } = require("pg");
+require("dotenv").config();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Optional: listen for errors on idle clients
+pool.on("error", (err) => {
+  console.error("Unexpected DB error", err);
+  process.exit(-1);
+});
+
+module.exports = pool;
