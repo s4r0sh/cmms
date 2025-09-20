@@ -51,7 +51,7 @@ export default function Inspections() {
       </Typography>
       <Grid container spacing={2}>
         {/* Table on left */}
-        <Grid item xs={9}>
+        <Grid xs={9}>
           <div style={{ height: 400, width: "100%" }}>
             <DataGrid
               rows={rows}
@@ -71,7 +71,7 @@ export default function Inspections() {
         </Grid>
 
         {/* Horizon filter on right */}
-        <Grid item xs={3}>
+        <Grid xs={3}>
           <Box display="flex" flexDirection="column" gap={2}>
             <Typography variant="subtitle1" sx={{ color: "secondary.main" }}>
               Forecast Horizon

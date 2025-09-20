@@ -1,48 +1,56 @@
-import React, { useEffect, useState } from "react";
+// Aircraft.jsx
+import React, { useEffect, useState, useCallback } from "react";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import { Grid, Button, Box, Typography, Paper } from "@mui/material";
 
-export default function Aircraft() {
+// ✅ Aircraft component
+export default function Aircraft({ refreshKey }) {
   const [rows, setRows] = useState([]);
-  // ✅ State for squadron filter
   const [squadron, setSquadron] = useState(null);
 
-  // ✅ Fetch with squadron filter
-  useEffect(() => {
+  // ✅ Fetch aircraft data
+  const fetchAircraft = useCallback(() => {
     let url = "http://localhost:5000/api/aircraft";
-    if (squadron) {
-      url += `?squadron=${squadron}`;
-    }
+    if (squadron) url += `?squadron=${squadron}`;
 
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        setRows(data.map((row, index) => ({ id: index + 1, ...row })));
+        // Backend already clusters by tail_number and sorts JCNS by created_at
+        setRows(
+          data.map((jcn, index) => ({
+            id: index + 1,
+            tail_number: jcn.tail_number,
+            type: jcn.type,
+            variant: jcn.variant,
+            reason: jcn.reason,
+            time: jcn.time,
+            details: jcn.details || "",
+          }))
+        );
       })
       .catch((err) => console.error("❌ Error fetching aircraft:", err));
   }, [squadron]);
 
+  // ✅ Run fetch on squadron change OR refresh trigger
   useEffect(() => {
-    fetch("http://localhost:5000/api/aircraft")
-      .then((res) => res.json())
-      .then((data) => {
-        setRows(data.map((row, index) => ({ id: index + 1, ...row })));
-      })
-      .catch((err) => console.error("❌ Error fetching aircraft:", err));
-  }, []);
+    fetchAircraft();
+  }, [squadron, refreshKey, fetchAircraft]);
 
+  // ✅ Polling every 2 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchAircraft, 2000);
+    return () => clearInterval(interval);
+  }, [fetchAircraft]);
+
+  // ✅ Columns aligned with backend
   const columns = [
     { field: "tail_number", headerName: "Tail Number", flex: 1, minWidth: 150 },
     { field: "type", headerName: "Type", flex: 1, minWidth: 80 },
     { field: "variant", headerName: "Variant", flex: 1, minWidth: 120 },
-    {
-      field: "status",
-      headerName: "Status",
-      flex: 1,
-      minWidth: 150,
-    },
     { field: "reason", headerName: "Reason", flex: 1, minWidth: 120 },
-    { field: "details", headerName: "Details", flex: 1, minWidth: 400 },
+    { field: "time", headerName: "Time", flex: 1, minWidth: 180 },
+    { field: "details", headerName: "Details", flex: 1, minWidth: 380 },
   ];
 
   return (
@@ -52,12 +60,13 @@ export default function Aircraft() {
       </Typography>
       <Grid container spacing={2}>
         {/* Table on left */}
-        <Grid item xs={9}>
+        <Grid xs={9}>
           <div style={{ height: 400, width: "100%" }}>
             <DataGrid
               rows={rows}
               columns={columns}
               pageSize={5}
+              // Removed initialState.sorting since backend handles it
               slots={{ toolbar: GridToolbar }}
               sx={{
                 border: "1px solid #ff00ff",
@@ -72,7 +81,7 @@ export default function Aircraft() {
         </Grid>
 
         {/* Filters on right */}
-        <Grid item xs={3}>
+        <Grid xs={3}>
           <Box display="flex" flexDirection="column" gap={2}>
             <Typography variant="subtitle1" sx={{ color: "secondary.main" }}>
               Squadron Filter
@@ -103,4 +112,11 @@ export default function Aircraft() {
       </Grid>
     </Paper>
   );
+}
+
+// ✅ Helper hook for refresh control
+export function useAircraftRefresh() {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const triggerRefresh = () => setRefreshKey((k) => k + 1);
+  return { refreshKey, triggerRefresh };
 }

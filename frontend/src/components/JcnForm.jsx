@@ -36,7 +36,7 @@ export default function JcnForm() {
 
   // Load aircraft
   useEffect(() => {
-    fetch("http://localhost:5000/api/aircraft")
+    fetch("http://localhost:5000/api/aircraft/all")
       .then((res) => res.json())
       .then(setAircraft)
       .catch((err) => console.error("Error loading aircraft:", err));

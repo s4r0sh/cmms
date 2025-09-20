@@ -214,45 +214,45 @@ TRUNCATE aircraft RESTART IDENTITY CASCADE;
 
 -- Sqn 39: 10x F-16 Block 52
 INSERT INTO aircraft (type, variant, tail_number, current_fh, current_fc, current_fl, squadron, operational_status, unserviceable_reason, details) VALUES
-('F-16', 'Block 52A', 'SQ39-F16-01', 1450, 930, 900, 'Sqn 39', 'serviceable', NULL, 'Ready'),
-('F-16', 'Block 52A', 'SQ39-F16-02', 1302, 820, 790, 'Sqn 39', 'serviceable', NULL, 'Ready'),
-('F-16', 'Block 52A', 'SQ39-F16-03', 1110, 700, 675, 'Sqn 39', 'unserviceable', 'scheduled', 'Aft inspection scheduled - crew assigned'),
-('F-16', 'Block 52A', 'SQ39-F16-04', 980, 640, 610, 'Sqn 39', 'unserviceable', 'unscheduled', 'Hydraulic leak reported - awaiting tech'),
-('F-16', 'Block 52A', 'SQ39-F16-05', 760, 495, 480, 'Sqn 39', 'serviceable', NULL, 'Operational'),
-('F-16', 'Block 52B', 'SQ39-F16-06', 1560, 1020, 990, 'Sqn 39', 'serviceable', NULL, 'Operational'),
-('F-16', 'Block 52B', 'SQ39-F16-07', 1125, 720, 700, 'Sqn 39', 'unserviceable', 'MICAP', 'Parts shortage: actuator'),
-('F-16', 'Block 52B', 'SQ39-F16-08', 900, 570, 560, 'Sqn 39', 'serviceable', NULL, 'Ready'),
-('F-16', 'Block 52B', 'SQ39-F16-09', 670, 420, 410, 'Sqn 39', 'serviceable', NULL, 'Ready'),
-('F-16', 'Block 52B', 'SQ39-F16-10', 300, 180, 175, 'Sqn 39', 'unserviceable', 'allotted_out', 'Allotted out to base for deep maintenance');
+('F-16', 'Block 52A', 'SQ39-F16-01', 1450, 930, 900, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52A', 'SQ39-F16-02', 1302, 820, 790, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52A', 'SQ39-F16-03', 1110, 700, 675, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52A', 'SQ39-F16-04', 980, 640, 610, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52A', 'SQ39-F16-05', 760, 495, 480, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52B', 'SQ39-F16-06', 1560, 1020, 990, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52B', 'SQ39-F16-07', 1125, 720, 700, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52B', 'SQ39-F16-08', 900, 570, 560, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52B', 'SQ39-F16-09', 670, 420, 410, 'Sqn 39', 'serviceable', NULL, NULL),
+('F-16', 'Block 52B', 'SQ39-F16-10', 300, 180, 175, 'Sqn 39', 'serviceable', NULL, NULL);
 
 -- Sqn 49: 20x JF-17 Block II
 INSERT INTO aircraft (type, variant, tail_number, current_fh, current_fc, current_fl, squadron, operational_status, unserviceable_reason, details) VALUES
-('JF-17', 'Block II-A', 'SQ49-JF17-01', 520, 350, 340, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-A', 'SQ49-JF17-02', 610, 410, 400, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-A', 'SQ49-JF17-03', 450, 300, 290, 'Sqn 49', 'unserviceable', 'scheduled', '300 FH inspection scheduled'),
-('JF-17', 'Block II-A', 'SQ49-JF17-04', 380, 260, 255, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-A', 'SQ49-JF17-05', 210, 120, 110, 'Sqn 49', 'serviceable', NULL, 'Ready'),
+('JF-17', 'Block II-A', 'SQ49-JF17-01', 520, 350, 340, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-A', 'SQ49-JF17-02', 610, 410, 400, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-A', 'SQ49-JF17-03', 450, 300, 290, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-A', 'SQ49-JF17-04', 380, 260, 255, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-A', 'SQ49-JF17-05', 210, 120, 110, 'Sqn 49', 'serviceable', NULL, NULL),
 -- Block II-B
-('JF-17', 'Block II-B', 'SQ49-JF17-06', 720, 480, 470, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-B', 'SQ49-JF17-07', 680, 450, 435, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-B', 'SQ49-JF17-08', 630, 410, 400, 'Sqn 49', 'unserviceable', 'unscheduled', 'Radio failure - troubleshooting'),
-('JF-17', 'Block II-B', 'SQ49-JF17-09', 590, 380, 375, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-B', 'SQ49-JF17-10', 560, 360, 350, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-B', 'SQ49-JF17-11', 510, 320, 310, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-B', 'SQ49-JF17-12', 470, 290, 285, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-B', 'SQ49-JF17-13', 420, 260, 250, 'Sqn 49', 'unserviceable', 'scheduled', 'Routine scheduled check'),
-('JF-17', 'Block II-B', 'SQ49-JF17-14', 380, 230, 225, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-B', 'SQ49-JF17-15', 340, 200, 195, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-B', 'SQ49-JF17-16', 300, 175, 170, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-B', 'SQ49-JF17-17', 260, 150, 145, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-B', 'SQ49-JF17-18', 220, 125, 120, 'Sqn 49', 'serviceable', NULL, 'Operational'),
-('JF-17', 'Block II-B', 'SQ49-JF17-19', 180, 100, 95, 'Sqn 49', 'serviceable', NULL, 'Ready'),
-('JF-17', 'Block II-B', 'SQ49-JF17-20', 140, 80, 75, 'Sqn 49', 'unserviceable', 'MICAP', 'Parts shortage: bearings');
+('JF-17', 'Block II-B', 'SQ49-JF17-06', 720, 480, 470, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-07', 680, 450, 435, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-08', 630, 410, 400, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-09', 590, 380, 375, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-10', 560, 360, 350, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-11', 510, 320, 310, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-12', 470, 290, 285, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-13', 420, 260, 250, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-14', 380, 230, 225, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-15', 340, 200, 195, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-16', 300, 175, 170, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-17', 260, 150, 145, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-18', 220, 125, 120, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-19', 180, 100, 95, 'Sqn 49', 'serviceable', NULL, NULL),
+('JF-17', 'Block II-B', 'SQ49-JF17-20', 140, 80, 75, 'Sqn 49', 'serviceable', NULL, NULL);
 
 -- Sqn 51: 5x DA-20 EW
 INSERT INTO aircraft (type, variant, tail_number, current_fh, current_fc, current_fl, squadron, operational_status, unserviceable_reason, details) VALUES
-('DA-20', 'EW', 'SQ51-DA20-01', 310, 200, 195, 'Sqn 51', 'serviceable', NULL, 'Operational EW'),
-('DA-20', 'EW', 'SQ51-DA20-02', 280, 180, 175, 'Sqn 51', 'serviceable', NULL, 'Operational EW'),
-('DA-20', 'EW', 'SQ51-DA20-03', 245, 150, 145, 'Sqn 51', 'unserviceable', 'unscheduled', 'Sensor fault reported'),
-('DA-20', 'EW', 'SQ51-DA20-04', 210, 125, 120, 'Sqn 51', 'serviceable', NULL, 'Ready'),
-('DA-20', 'EW', 'SQ51-DA20-05', 60, 30, 28, 'Sqn 51', 'unserviceable', 'allotted_out', 'Allotted out for avionics shop');
+('DA-20', 'EW', 'SQ51-DA20-01', 310, 200, 195, 'Sqn 51', 'serviceable', NULL, NULL),
+('DA-20', 'EW', 'SQ51-DA20-02', 280, 180, 175, 'Sqn 51', 'serviceable', NULL, NULL),
+('DA-20', 'EW', 'SQ51-DA20-03', 245, 150, 145, 'Sqn 51', 'serviceable', NULL, NULL),
+('DA-20', 'EW', 'SQ51-DA20-04', 210, 125, 120, 'Sqn 51', 'serviceable', NULL, NULL),
+('DA-20', 'EW', 'SQ51-DA20-05', 60, 30, 28, 'Sqn 51', 'serviceable', NULL, NULL);

@@ -45,7 +45,7 @@ router.get("/", async (req, res) => {
 });
 
 // =============================
-// GET all OPEN JCNS (for update/close list)
+// GET all OPEN JCNS
 // =============================
 router.get("/open", async (req, res) => {
   try {
@@ -105,7 +105,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // =============================
-// GET all inspections (for frontend dropdown)
+// GET all inspections
 // =============================
 router.get("/inspections", async (req, res) => {
   try {
@@ -119,9 +119,6 @@ router.get("/inspections", async (req, res) => {
   }
 });
 
-// =============================
-// CREATE new JCN (with optional immediate close)
-// =============================
 // =============================
 // CREATE new JCN (with optional immediate close + custom inspection)
 // =============================
@@ -173,6 +170,7 @@ router.post("/", async (req, res) => {
       }
     }
 
+    // Insert JCN
     const insertResult = await pool.query(
       `INSERT INTO maintenance_jcn
        (jcn_no, aircraft_id, maintenance_type, work_unit_code, discrepancy, corrective_action, inspection_id, status, closed_at)
@@ -192,6 +190,21 @@ router.post("/", async (req, res) => {
 
     const newId = insertResult.rows[0].id;
 
+    // 🔹 Update aircraft to unserviceable
+    if (!close) {
+      await pool.query(
+        `
+      UPDATE aircraft
+      SET operational_status = 'unserviceable',
+          unserviceable_reason = $1,
+          details = $2
+      WHERE id = $3
+    `,
+        [maintenance_type, corrective_action || "Pending", aircraft_id]
+      );
+    }
+
+    // Return full inserted JCN
     const fullResult = await pool.query(
       `SELECT j.id, j.jcn_no, j.maintenance_type, j.work_unit_code,
               j.discrepancy, j.corrective_action, j.status, j.created_at, j.closed_at,
@@ -241,10 +254,14 @@ router.post("/:id/demands", async (req, res) => {
 // =============================
 // UPDATE JCN (corrective action / close)
 // =============================
+// =============================
+// UPDATE JCN (corrective action / close)
+// =============================
 router.put("/:id", async (req, res) => {
   try {
     const { corrective_action, close } = req.body;
 
+    // Update corrective action & optionally close
     const updateQuery = close
       ? `
         UPDATE maintenance_jcn
@@ -252,13 +269,13 @@ router.put("/:id", async (req, res) => {
             status = 'CLOSED',
             closed_at = NOW()
         WHERE id = $2 AND status = 'OPEN'
-        RETURNING id;
+        RETURNING aircraft_id;
       `
       : `
         UPDATE maintenance_jcn
         SET corrective_action = COALESCE($1, corrective_action)
         WHERE id = $2 AND status = 'OPEN'
-        RETURNING id;
+        RETURNING aircraft_id;
       `;
 
     const updateResult = await pool.query(updateQuery, [
@@ -270,18 +287,38 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "JCN not found or already closed" });
     }
 
-    // 🔄 fetch the updated row with same shape as other endpoints
+    const aircraft_id = updateResult.rows[0].aircraft_id;
+
+    // 🔹 If JCN is closed, check if aircraft can be marked serviceable
+    if (close) {
+      const openJcns = await pool.query(
+        `SELECT COUNT(*) FROM maintenance_jcn
+         WHERE aircraft_id=$1 AND status='OPEN'`,
+        [aircraft_id]
+      );
+
+      if (parseInt(openJcns.rows[0].count) === 0) {
+        await pool.query(
+          `UPDATE aircraft
+           SET operational_status='serviceable',
+               unserviceable_reason=NULL,
+               details=NULL
+           WHERE id=$1`,
+          [aircraft_id]
+        );
+      }
+    }
+
+    // Return updated JCN
     const fullResult = await pool.query(
-      `
-      SELECT j.id, j.jcn_no, j.maintenance_type, j.work_unit_code,
-             j.discrepancy, j.corrective_action, j.status, j.created_at, j.closed_at,
-             j.inspection_id, i.name AS inspection_name, i.trigger_type, i.interval_value,
-             a.tail_number, a.type AS aircraft_type, a.variant AS aircraft_variant
-      FROM maintenance_jcn j
-      LEFT JOIN aircraft a ON j.aircraft_id = a.id
-      LEFT JOIN inspections i ON j.inspection_id = i.id
-      WHERE j.id = $1
-      `,
+      `SELECT j.id, j.jcn_no, j.maintenance_type, j.work_unit_code,
+              j.discrepancy, j.corrective_action, j.status, j.created_at, j.closed_at,
+              j.inspection_id, i.name AS inspection_name, i.trigger_type, i.interval_value,
+              a.tail_number, a.type AS aircraft_type, a.variant AS aircraft_variant
+       FROM maintenance_jcn j
+       LEFT JOIN aircraft a ON j.aircraft_id = a.id
+       LEFT JOIN inspections i ON j.inspection_id = i.id
+       WHERE j.id = $1`,
       [req.params.id]
     );
 
@@ -293,46 +330,56 @@ router.put("/:id", async (req, res) => {
 });
 
 // =============================
-// CLOSE JCN (shortcut, optionally update corrective action)
+// CLOSE JCN (shortcut)
 // =============================
 router.post("/:id/close", async (req, res) => {
   try {
-    const { corrective_action } = req.body; // optional
+    const { corrective_action } = req.body;
 
-    const updateQuery = `
-      UPDATE maintenance_jcn
-      SET status = 'CLOSED',
-          closed_at = NOW(),
-          corrective_action = COALESCE($1, corrective_action)
-      WHERE id = $2 AND status = 'OPEN'
-      RETURNING id;
-    `;
-
-    const updateResult = await pool.query(updateQuery, [
-      corrective_action,
-      req.params.id,
-    ]);
-
-    if (updateResult.rows.length === 0) {
-      return res.status(404).json({ error: "JCN not found or already closed" });
-    }
-
-    // fetch full updated JCN
-    const fullResult = await pool.query(
-      `
-      SELECT j.id, j.jcn_no, j.maintenance_type, j.work_unit_code,
-             j.discrepancy, j.corrective_action, j.status, j.created_at, j.closed_at,
-             j.inspection_id, i.name AS inspection_name, i.trigger_type, i.interval_value,
-             a.tail_number, a.type AS aircraft_type, a.variant AS aircraft_variant
-      FROM maintenance_jcn j
-      LEFT JOIN aircraft a ON j.aircraft_id = a.id
-      LEFT JOIN inspections i ON j.inspection_id = i.id
-      WHERE j.id = $1
-      `,
+    // Get JCN with its aircraft
+    const jcnResult = await pool.query(
+      `SELECT id, aircraft_id
+       FROM maintenance_jcn
+       WHERE id=$1 AND status='OPEN'`,
       [req.params.id]
     );
 
-    res.json(fullResult.rows[0]);
+    if (jcnResult.rows.length === 0) {
+      return res.status(404).json({ error: "JCN not found or already closed" });
+    }
+
+    const aircraft_id = jcnResult.rows[0].aircraft_id;
+
+    // Close the JCN
+    await pool.query(
+      `UPDATE maintenance_jcn
+       SET status='CLOSED',
+           closed_at=NOW(),
+           corrective_action=COALESCE($1, corrective_action)
+       WHERE id=$2`,
+      [corrective_action, req.params.id]
+    );
+
+    // Check if other open JCNS exist for this aircraft
+    const openJcns = await pool.query(
+      `SELECT COUNT(*) FROM maintenance_jcn
+       WHERE aircraft_id=$1 AND status='OPEN'`,
+      [aircraft_id]
+    );
+
+    if (parseInt(openJcns.rows[0].count) === 0) {
+      // No open JCNS left → mark aircraft serviceable again
+      await pool.query(
+        `UPDATE aircraft
+         SET operational_status='serviceable',
+             unserviceable_reason=NULL,
+             details=NULL
+         WHERE id=$1`,
+        [aircraft_id]
+      );
+    }
+
+    res.json({ success: true });
   } catch (err) {
     console.error("❌ Error closing JCN:", err);
     res.status(500).json({ error: "Failed to close JCN" });
