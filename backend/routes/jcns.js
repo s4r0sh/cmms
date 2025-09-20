@@ -122,11 +122,14 @@ router.get("/inspections", async (req, res) => {
 // =============================
 // CREATE new JCN (with optional immediate close)
 // =============================
+// =============================
+// CREATE new JCN (with optional immediate close + custom inspection)
+// =============================
 router.post("/", async (req, res) => {
   try {
     console.log("📥 Incoming JCN payload:", req.body);
 
-    const {
+    let {
       jcn_no,
       aircraft_id,
       maintenance_type,
@@ -134,16 +137,46 @@ router.post("/", async (req, res) => {
       discrepancy,
       corrective_action,
       inspection_id,
-      close, // 👈 allow client to close immediately
+      custom_inspection_name,
+      custom_trigger_type,
+      custom_interval_value,
+      close,
     } = req.body;
 
+    // Handle custom inspection
+    if (
+      maintenance_type === "scheduled" &&
+      custom_inspection_name &&
+      custom_trigger_type &&
+      custom_interval_value
+    ) {
+      const intervalInt = parseInt(custom_interval_value, 10);
+      if (isNaN(intervalInt) || intervalInt <= 0) {
+        return res
+          .status(400)
+          .json({ error: "Custom interval must be a positive number" });
+      }
+
+      try {
+        const customInsert = await pool.query(
+          `INSERT INTO inspections (name, trigger_type, interval_value, is_custom)
+           VALUES ($1,$2,$3, TRUE) RETURNING id`,
+          [custom_inspection_name, custom_trigger_type, intervalInt]
+        );
+        inspection_id = customInsert.rows[0].id;
+        console.log("✅ Custom inspection created with id:", inspection_id);
+      } catch (err) {
+        console.error("❌ Failed to create custom inspection:", err);
+        return res
+          .status(500)
+          .json({ error: "Failed to create custom inspection" });
+      }
+    }
+
     const insertResult = await pool.query(
-      `
-      INSERT INTO maintenance_jcn
-      (jcn_no, aircraft_id, maintenance_type, work_unit_code, discrepancy, corrective_action, inspection_id, status, closed_at) 
-      VALUES ($1,$2,$3,$4,$5,$6,$7, $8, $9)
-      RETURNING id
-      `,
+      `INSERT INTO maintenance_jcn
+       (jcn_no, aircraft_id, maintenance_type, work_unit_code, discrepancy, corrective_action, inspection_id, status, closed_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
       [
         jcn_no,
         aircraft_id,
@@ -160,16 +193,14 @@ router.post("/", async (req, res) => {
     const newId = insertResult.rows[0].id;
 
     const fullResult = await pool.query(
-      `
-      SELECT j.id, j.jcn_no, j.maintenance_type, j.work_unit_code,
-             j.discrepancy, j.corrective_action, j.status, j.created_at, j.closed_at,
-             a.tail_number, a.type AS aircraft_type, a.variant AS aircraft_variant,
-             j.inspection_id, i.name AS inspection_name
-      FROM maintenance_jcn j
-      LEFT JOIN aircraft a ON j.aircraft_id = a.id
-      LEFT JOIN inspections i ON j.inspection_id = i.id
-      WHERE j.id = $1
-      `,
+      `SELECT j.id, j.jcn_no, j.maintenance_type, j.work_unit_code,
+              j.discrepancy, j.corrective_action, j.status, j.created_at, j.closed_at,
+              a.tail_number, a.type AS aircraft_type, a.variant AS aircraft_variant,
+              j.inspection_id, i.name AS inspection_name, i.trigger_type, i.interval_value
+       FROM maintenance_jcn j
+       LEFT JOIN aircraft a ON j.aircraft_id = a.id
+       LEFT JOIN inspections i ON j.inspection_id = i.id
+       WHERE j.id = $1`,
       [newId]
     );
 

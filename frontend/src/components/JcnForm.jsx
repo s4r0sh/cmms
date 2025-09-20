@@ -9,7 +9,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
 } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
 
 export default function JcnForm() {
   const [mode, setMode] = useState("create");
@@ -25,6 +27,14 @@ export default function JcnForm() {
   const [selectedJcn, setSelectedJcn] = useState("");
   const [selectedJcnData, setSelectedJcnData] = useState(null);
 
+  const [showCustomInspection, setShowCustomInspection] = useState(false);
+  const [customInspection, setCustomInspection] = useState({
+    name: "",
+    trigger_type: "",
+    interval_value: "",
+  });
+
+  // Load aircraft
   useEffect(() => {
     fetch("http://localhost:5000/api/aircraft")
       .then((res) => res.json())
@@ -32,6 +42,7 @@ export default function JcnForm() {
       .catch((err) => console.error("Error loading aircraft:", err));
   }, []);
 
+  // Load inspections if scheduled
   useEffect(() => {
     if (maintenanceType === "scheduled") {
       fetch("http://localhost:5000/api/inspections")
@@ -44,6 +55,7 @@ export default function JcnForm() {
     }
   }, [maintenanceType]);
 
+  // Load open JCNS if updating
   useEffect(() => {
     if (mode === "update") {
       fetch("http://localhost:5000/api/jcns?status=OPEN")
@@ -53,6 +65,7 @@ export default function JcnForm() {
     }
   }, [mode]);
 
+  // Load selected JCN data
   useEffect(() => {
     if (selectedJcn) {
       const jcn = jcns.find((j) => String(j.id) === String(selectedJcn));
@@ -86,32 +99,43 @@ export default function JcnForm() {
     setDiscrepancy("");
     setCorrectiveAction("");
     setInspectionId("");
+    setShowCustomInspection(false);
+    setCustomInspection({ name: "", trigger_type: "", interval_value: "" });
   };
 
   const saveJcn = async (close = false) => {
-    const payload = {
-      jcn_no: jcnNo,
-      aircraft_id: aircraftId ? parseInt(aircraftId, 10) : null,
-      maintenance_type: maintenanceType,
-      discrepancy: discrepancy || null,
-      corrective_action: correctiveAction || null,
-      inspection_id:
-        maintenanceType === "scheduled" && inspectionId
-          ? parseInt(inspectionId, 10)
-          : null,
-      close,
-    };
-
-    const url =
-      mode === "create"
-        ? "http://localhost:5000/api/jcns"
-        : `http://localhost:5000/api/jcns/${selectedJcn}${
-            close ? "/close" : ""
-          }`;
-
-    const method = mode === "create" || close ? "POST" : "PUT";
-
     try {
+      // Prepare payload
+      const payload = {
+        jcn_no: jcnNo,
+        aircraft_id: aircraftId ? parseInt(aircraftId, 10) : null,
+        maintenance_type: maintenanceType,
+        discrepancy: discrepancy || null,
+        corrective_action: correctiveAction || null,
+        inspection_id: maintenanceType === "scheduled" ? inspectionId : null,
+        close,
+      };
+
+      // Include custom inspection if provided
+      if (showCustomInspection && customInspection.name) {
+        payload.custom_inspection_name = customInspection.name;
+        payload.custom_trigger_type = customInspection.trigger_type;
+        payload.custom_interval_value = parseInt(
+          customInspection.interval_value,
+          10
+        );
+      }
+
+      // Determine endpoint and method
+      const url =
+        mode === "create"
+          ? "http://localhost:5000/api/jcns"
+          : `http://localhost:5000/api/jcns/${selectedJcn}${
+              close ? "/close" : ""
+            }`;
+
+      const method = mode === "create" || close ? "POST" : "PUT";
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -119,12 +143,14 @@ export default function JcnForm() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         alert(
           `✅ JCN ${
             mode === "create" ? "created" : close ? "closed" : "updated"
           } successfully`
         );
 
+        // Refresh open JCNS if in update mode
         if (mode === "update") {
           fetch("http://localhost:5000/api/jcns?status=OPEN")
             .then((res) => res.json())
@@ -134,10 +160,12 @@ export default function JcnForm() {
 
         resetForm();
       } else {
-        alert("❌ Failed to save JCN");
+        const errData = await res.json();
+        alert("❌ Failed to save JCN: " + (errData.error || res.statusText));
       }
     } catch (err) {
       console.error("Error saving JCN:", err);
+      alert("❌ Failed to save JCN due to network or server error");
     }
   };
 
@@ -161,6 +189,7 @@ export default function JcnForm() {
         Maintenance JCN
       </Typography>
 
+      {/* Mode selection */}
       <FormControl fullWidth sx={{ mb: 3 }}>
         <InputLabel sx={{ color: "#00fff7" }}>Mode</InputLabel>
         <Select
@@ -173,6 +202,7 @@ export default function JcnForm() {
         </Select>
       </FormControl>
 
+      {/* Select JCN if update mode */}
       {mode === "update" && (
         <FormControl fullWidth sx={{ mb: 3 }}>
           <InputLabel sx={{ color: "#00fff7" }}>Select JCN</InputLabel>
@@ -288,110 +318,157 @@ export default function JcnForm() {
           </FormControl>
         )}
 
-        {/* Inspection */}
+        {/* Inspections (only for scheduled) */}
         {maintenanceType === "scheduled" && (
-          <FormControl fullWidth>
-            {mode === "create" || !selectedJcnData ? (
-              <>
-                <InputLabel
-                  sx={{ color: isLockedBeforeSelect ? "#888" : "#00fff7" }}
-                >
-                  Inspection
-                </InputLabel>
-                <Select
-                  value={inspectionId}
-                  onChange={(e) => setInspectionId(e.target.value)}
-                  disabled={isLockedBeforeSelect}
-                  sx={{ color: isLockedBeforeSelect ? "#888" : "#fff" }}
-                >
-                  <MenuItem value="">
-                    <em>-- Select Inspection --</em>
-                  </MenuItem>
-                  {inspections.map((insp) => (
-                    <MenuItem key={insp.id} value={String(insp.id)}>
-                      {insp.name} ({insp.trigger_type}-{insp.interval_value})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </>
-            ) : (
-              <TextField
-                label="Inspection"
-                value={
-                  inspections.find(
-                    (i) =>
-                      String(i.id) === String(selectedJcnData.inspection_id)
-                  )
-                    ? `${
-                        inspections.find(
-                          (i) =>
-                            String(i.id) ===
-                            String(selectedJcnData.inspection_id)
-                        ).name
-                      } (${
-                        inspections.find(
-                          (i) =>
-                            String(i.id) ===
-                            String(selectedJcnData.inspection_id)
-                        ).trigger_type
-                      }-${
-                        inspections.find(
-                          (i) =>
-                            String(i.id) ===
-                            String(selectedJcnData.inspection_id)
-                        ).interval_value
-                      })`
-                    : "N/A"
+          <Box display="flex" alignItems="center" gap={1}>
+            <FormControl fullWidth>
+              <InputLabel
+                sx={{
+                  color:
+                    showCustomInspection ||
+                    (mode === "update" && selectedJcnData)
+                      ? "#888" // grayed out
+                      : "#00fff7",
+                }}
+              >
+                Inspection
+              </InputLabel>
+              <Select
+                value={inspectionId}
+                onChange={(e) => setInspectionId(e.target.value)}
+                disabled={
+                  showCustomInspection || (mode === "update" && selectedJcnData)
                 }
-                InputProps={{ readOnly: true }}
-                sx={{ input: { color: "#888" }, label: { color: "#888" } }}
+                sx={{
+                  color:
+                    showCustomInspection ||
+                    (mode === "update" && selectedJcnData)
+                      ? "#888"
+                      : "#fff",
+                }}
+              >
+                <MenuItem value="">
+                  <em>-- Select Inspection --</em>
+                </MenuItem>
+                {inspections.map((i) => (
+                  <MenuItem key={i.id} value={String(i.id)}>
+                    {i.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Plus button for custom inspection */}
+            <IconButton
+              color="primary"
+              onClick={() => setShowCustomInspection((prev) => !prev)}
+              disabled={mode === "update" && selectedJcnData}
+            >
+              <AddIcon
+                sx={{
+                  color:
+                    showCustomInspection ||
+                    (mode === "update" && selectedJcnData)
+                      ? "#888"
+                      : "#00fff7",
+                }}
               />
-            )}
-          </FormControl>
+            </IconButton>
+          </Box>
+        )}
+
+        {/* Custom inspection fields */}
+        {showCustomInspection && (
+          <Box display="flex" gap={2} flexWrap="wrap">
+            <TextField
+              label="Inspection Name"
+              variant="outlined"
+              value={customInspection.name}
+              onChange={(e) =>
+                setCustomInspection((prev) => ({
+                  ...prev,
+                  name: e.target.value,
+                }))
+              }
+              sx={{
+                input: { color: "#fff" },
+                label: { color: "#00fff7" },
+                flex: 1,
+              }}
+            />
+            <TextField
+              label="Interval Value"
+              variant="outlined"
+              type="number"
+              value={customInspection.interval_value}
+              onChange={(e) =>
+                setCustomInspection((prev) => ({
+                  ...prev,
+                  interval_value: e.target.value,
+                }))
+              }
+              sx={{
+                input: { color: "#fff" },
+                label: { color: "#00fff7" },
+                flex: 1,
+              }}
+            />
+            <TextField
+              label="Trigger Type"
+              variant="outlined"
+              value={customInspection.trigger_type}
+              onChange={(e) =>
+                setCustomInspection((prev) => ({
+                  ...prev,
+                  trigger_type: e.target.value,
+                }))
+              }
+              sx={{
+                input: { color: "#fff" },
+                label: { color: "#00fff7" },
+                flex: 1,
+              }}
+            />
+          </Box>
         )}
 
         {/* Discrepancy */}
         <TextField
           label="Discrepancy"
-          multiline
-          rows={3}
+          variant="outlined"
           value={discrepancy}
           onChange={(e) => setDiscrepancy(e.target.value)}
-          sx={{
-            textarea: { color: "#fff" },
-            label: { color: isLockedAfterSelect ? "#888" : "#00fff7" },
-          }}
-          disabled={isLockedAfterSelect}
+          multiline
+          minRows={2}
+          sx={{ input: { color: "#fff" }, label: { color: "#00fff7" } }}
         />
 
         {/* Corrective Action */}
         <TextField
           label="Corrective Action"
-          multiline
-          rows={3}
+          variant="outlined"
           value={correctiveAction}
           onChange={(e) => setCorrectiveAction(e.target.value)}
-          sx={{ textarea: { color: "#fff" }, label: { color: "#00fff7" } }}
+          multiline
+          minRows={2}
+          sx={{ input: { color: "#fff" }, label: { color: "#00fff7" } }}
         />
 
-        <Button
-          type="submit"
-          variant="contained"
-          sx={{ bgcolor: "#00fff7", color: "#000" }}
-        >
-          {mode === "create" ? "Submit JCN" : "Update JCN"}
-        </Button>
-
-        {mode === "update" && selectedJcn && (
-          <Button
-            type="button"
-            variant="outlined"
-            onClick={() => saveJcn(true)}
-            sx={{ borderColor: "#00fff7", color: "#00fff7" }}
-          >
-            Close JCN
+        {/* Submit */}
+        <Box display="flex" gap={2} mt={2}>
+          <Button variant="contained" color="primary" onClick={() => saveJcn()}>
+            Create / Update JCN
           </Button>
-        )}
+          {mode === "update" && selectedJcn && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => saveJcn(true)}
+            >
+              Close JCN
+            </Button>
+          )}
+        </Box>
       </Box>
     </Paper>
   );
