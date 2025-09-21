@@ -140,7 +140,8 @@ CREATE TABLE inspection_history (
   fh_at_inspection INTEGER,
   fc_at_inspection INTEGER,
   fl_at_inspection INTEGER,
-  remarks TEXT
+  remarks TEXT,  
+  CONSTRAINT unique_aircraft_inspection UNIQUE (aircraft_id, inspection_id)
 );
 
 -- =========================

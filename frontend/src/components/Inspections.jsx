@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import {
   Grid,
@@ -14,15 +14,44 @@ import {
 export default function Inspections() {
   const [rows, setRows] = useState([]);
   const [horizon, setHorizon] = useState(100);
+  const [squadron, setSquadron] = useState(null);
 
-  useEffect(() => {
-    fetch(`http://localhost:5000/api/inspections/planning?horizon=${horizon}`)
+  const fetchInspections = useCallback(() => {
+    let url = `http://localhost:5000/api/inspections/planning?horizon=${horizon}`;
+    if (squadron) url += `&squadron=${encodeURIComponent(squadron)}`;
+
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
-        setRows(data.map((row, index) => ({ id: index + 1, ...row })));
+        if (Array.isArray(data)) {
+          setRows(data.map((row, index) => ({ id: index + 1, ...row })));
+        } else {
+          console.error("❌ Unexpected response:", data);
+          setRows([]);
+        }
       })
+
       .catch((err) => console.error("❌ Error fetching inspections:", err));
-  }, [horizon]);
+  }, [horizon, squadron]);
+
+  // Initial + horizon change
+  useEffect(() => {
+    fetchInspections();
+  }, [fetchInspections]);
+
+  // ✅ Polling every 2s
+  useEffect(() => {
+    const interval = setInterval(fetchInspections, 2000);
+    return () => clearInterval(interval);
+  }, [fetchInspections]);
+
+  const closeJCN = async (jcnId) => {
+    await fetch(`http://localhost:5000/api/jcns/${jcnId}/close`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    fetchInspections(); // refresh inspections table
+  };
 
   const columns = [
     { field: "tail_number", headerName: "Tail Number", flex: 1, minWidth: 150 },
@@ -73,6 +102,25 @@ export default function Inspections() {
         {/* Horizon filter on right */}
         <Grid xs={3}>
           <Box display="flex" flexDirection="column" gap={2}>
+            <Typography variant="subtitle1" sx={{ color: "secondary.main" }}>
+              Squadron Filter
+            </Typography>
+            <FormControl fullWidth>
+              <InputLabel id="squadron-label" sx={{ color: "#fff" }}>
+                Squadron
+              </InputLabel>
+              <Select
+                labelId="squadron-label"
+                value={squadron || ""}
+                onChange={(e) => setSquadron(e.target.value)}
+                sx={{ color: "#fff" }}
+              >
+                <MenuItem value="">All Sqns</MenuItem>
+                <MenuItem value="Sqn 39">Sqn 39</MenuItem>
+                <MenuItem value="Sqn 49">Sqn 49</MenuItem>
+                <MenuItem value="Sqn 51">Sqn 51</MenuItem>
+              </Select>
+            </FormControl>
             <Typography variant="subtitle1" sx={{ color: "secondary.main" }}>
               Forecast Horizon
             </Typography>

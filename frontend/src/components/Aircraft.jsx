@@ -17,11 +17,15 @@ import {
 export default function Aircraft({ refreshKey }) {
   const [rows, setRows] = useState([]);
   const [squadron, setSquadron] = useState(null);
+  const [reason, setReason] = useState(null);
 
   // ✅ Fetch aircraft data
   const fetchAircraft = useCallback(() => {
     let url = "http://localhost:5000/api/aircraft";
-    if (squadron) url += `?squadron=${squadron}`;
+    const params = [];
+    if (squadron) params.push(`squadron=${squadron}`);
+    if (reason) params.push(`reason=${reason}`);
+    if (params.length) url += `?${params.join("&")}`;
 
     fetch(url)
       .then((res) => res.json())
@@ -40,12 +44,12 @@ export default function Aircraft({ refreshKey }) {
         );
       })
       .catch((err) => console.error("❌ Error fetching aircraft:", err));
-  }, [squadron]);
+  }, [squadron, reason]);
 
   // ✅ Run fetch on squadron change OR refresh trigger
   useEffect(() => {
     fetchAircraft();
-  }, [squadron, refreshKey, fetchAircraft]);
+  }, [squadron, reason, refreshKey, fetchAircraft]);
 
   // ✅ Polling every 2 seconds
   useEffect(() => {
@@ -110,6 +114,31 @@ export default function Aircraft({ refreshKey }) {
                 <MenuItem value="Sqn 39">Sqn 39</MenuItem>
                 <MenuItem value="Sqn 49">Sqn 49</MenuItem>
                 <MenuItem value="Sqn 51">Sqn 51</MenuItem>
+              </Select>
+            </FormControl>
+            {/* 🔹 Unserviceability Reason Filter */}
+            <Typography variant="subtitle1" sx={{ color: "secondary.main" }}>
+              Unserviceability Reason
+            </Typography>
+            <FormControl fullWidth>
+              <InputLabel id="reason-label" sx={{ color: "#fff" }}>
+                Reason
+              </InputLabel>
+              <Select
+                labelId="reason-label"
+                value={reason || ""} // You'll need a new state: const [reason, setReason] = useState(null);
+                onChange={(e) => setReason(e.target.value)}
+                sx={{ color: "#fff" }}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="scheduled">Scheduled</MenuItem>
+                <MenuItem value="unscheduled">Unscheduled</MenuItem>
+                <MenuItem value="micap" disabled>
+                  MICAP
+                </MenuItem>
+                <MenuItem value="allotted_out" disabled>
+                  Allotted Out
+                </MenuItem>
               </Select>
             </FormControl>
           </Box>

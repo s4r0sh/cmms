@@ -8,36 +8,47 @@ const pool = require("../db");
 // ===================================
 router.get("/", async (req, res) => {
   try {
-    const { squadron } = req.query;
+    const { squadron, reason } = req.query;
+    const conditions = [
+      "a.operational_status='unserviceable'",
+      "j.status ILIKE 'open'",
+    ];
+    const params = [];
+    // Optional squadron filter
+    if (squadron) {
+      params.push(`%${squadron}%`);
+      conditions.push(`TRIM(a.squadron) ILIKE $${params.length}`);
+    }
+    // Optional reason filter
+    if (reason) {
+      params.push(reason.toLowerCase()); // make sure it matches DB values
+      conditions.push(`LOWER(a.unserviceable_reason) = $${params.length}`);
+    }
 
     const baseQuery = `
-      SELECT 
-        a.tail_number,
-        a.type,
-        a.variant,
-        json_agg(
-          json_build_object(
-            'reason', j.maintenance_type,
-            'details', CASE 
-                        WHEN j.maintenance_type='scheduled' THEN i.name
-                        ELSE j.discrepancy || ' | ' || j.corrective_action
-                      END,
-            'time', j.created_at
-          ) ORDER BY j.created_at DESC
-        ) AS jcns
-      FROM aircraft a
-      JOIN maintenance_jcn j ON j.aircraft_id = a.id
-      LEFT JOIN inspections i ON j.inspection_id = i.id
-      WHERE a.operational_status='unserviceable' 
-        AND j.status ILIKE 'open'
-        ${squadron ? "AND TRIM(a.squadron) ILIKE $1" : ""}
-      GROUP BY a.id
-      ORDER BY a.tail_number COLLATE "C" ASC;
-    `;
+  SELECT 
+    a.tail_number,
+    a.type,
+    a.variant,
+    json_agg(
+      json_build_object(
+        'reason', j.maintenance_type,
+        'details', CASE 
+                    WHEN j.maintenance_type='scheduled' THEN i.name
+                    ELSE j.discrepancy || ' | ' || j.corrective_action
+                  END,
+        'time', j.created_at
+      ) ORDER BY j.created_at DESC
+    ) AS jcns
+  FROM aircraft a
+  JOIN maintenance_jcn j ON j.aircraft_id = a.id
+  LEFT JOIN inspections i ON j.inspection_id = i.id
+  WHERE ${conditions.join(" AND ")}
+  GROUP BY a.id
+  ORDER BY a.tail_number COLLATE "C" ASC;
+`;
 
-    const result = squadron
-      ? await pool.query(baseQuery, [`%${squadron}%`])
-      : await pool.query(baseQuery);
+    const result = await pool.query(baseQuery, params);
 
     // Flatten for DataGrid (1 row per JCN)
     const rows = [];

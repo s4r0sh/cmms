@@ -338,7 +338,7 @@ router.post("/:id/close", async (req, res) => {
 
     // Get JCN with its aircraft
     const jcnResult = await pool.query(
-      `SELECT id, aircraft_id
+      `SELECT id, aircraft_id, inspection_id
        FROM maintenance_jcn
        WHERE id=$1 AND status='OPEN'`,
       [req.params.id]
@@ -348,7 +348,7 @@ router.post("/:id/close", async (req, res) => {
       return res.status(404).json({ error: "JCN not found or already closed" });
     }
 
-    const aircraft_id = jcnResult.rows[0].aircraft_id;
+    const { aircraft_id, inspection_id } = jcnResult.rows[0];
 
     // Close the JCN
     await pool.query(
@@ -359,6 +359,45 @@ router.post("/:id/close", async (req, res) => {
        WHERE id=$2`,
       [corrective_action, req.params.id]
     );
+
+    if (inspection_id) {
+      // Fetch the inspection type
+      const insRes = await pool.query(
+        `SELECT trigger_type FROM inspections WHERE id=$1`,
+        [inspection_id]
+      );
+
+      if (insRes.rows.length) {
+        const trigger_type = insRes.rows[0].trigger_type;
+
+        if (trigger_type === "CALENDAR") {
+          // Calendar inspection → update performed_on to now
+          await pool.query(
+            `UPDATE inspection_history 
+         SET performed_on = NOW() 
+         WHERE aircraft_id=$1 AND inspection_id=$2`,
+            [aircraft_id, inspection_id]
+          );
+        } else {
+          // Numeric → reset last_value to current aircraft counter
+          const acRes = await pool.query(
+            `SELECT current_fh, current_fc, current_fl FROM aircraft WHERE id=$1`,
+            [aircraft_id]
+          );
+          let last_value = null;
+          if (trigger_type === "FH") last_value = acRes.rows[0].current_fh;
+          if (trigger_type === "FC") last_value = acRes.rows[0].current_fc;
+          if (trigger_type === "FL") last_value = acRes.rows[0].current_fl;
+
+          await pool.query(
+            `UPDATE inspection_history 
+         SET last_value = $1 
+         WHERE aircraft_id=$2 AND inspection_id=$3`,
+            [last_value, aircraft_id, inspection_id]
+          );
+        }
+      }
+    }
 
     // Check if other open JCNS exist for this aircraft
     const openJcns = await pool.query(

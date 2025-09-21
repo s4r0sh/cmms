@@ -105,7 +105,7 @@ export default function JcnForm() {
 
   const saveJcn = async (close = false) => {
     try {
-      // Prepare payload
+      // 🔹 Build payload
       const payload = {
         jcn_no: jcnNo,
         aircraft_id: aircraftId ? parseInt(aircraftId, 10) : null,
@@ -116,7 +116,7 @@ export default function JcnForm() {
         close,
       };
 
-      // Include custom inspection if provided
+      // 🔹 Add custom inspection if any
       if (showCustomInspection && customInspection.name) {
         payload.custom_inspection_name = customInspection.name;
         payload.custom_trigger_type = customInspection.trigger_type;
@@ -126,7 +126,7 @@ export default function JcnForm() {
         );
       }
 
-      // Determine endpoint and method
+      // 🔹 API endpoint + method
       const url =
         mode === "create"
           ? "http://localhost:5000/api/jcns"
@@ -136,21 +136,29 @@ export default function JcnForm() {
 
       const method = mode === "create" || close ? "POST" : "PUT";
 
+      // 🔹 Request
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
+      // Try parsing response (in case server returns empty body)
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
       if (res.ok) {
-        const data = await res.json();
         alert(
           `✅ JCN ${
             mode === "create" ? "created" : close ? "closed" : "updated"
           } successfully`
         );
 
-        // Refresh open JCNS if in update mode
+        // 🔹 Refresh JCNs if updating
         if (mode === "update") {
           fetch("http://localhost:5000/api/jcns?status=OPEN")
             .then((res) => res.json())
@@ -158,13 +166,13 @@ export default function JcnForm() {
             .catch((err) => console.error("Error refreshing JCNs:", err));
         }
 
+        // 🔹 Always reset form after success
         resetForm();
       } else {
-        const errData = await res.json();
-        alert("❌ Failed to save JCN: " + (errData.error || res.statusText));
+        alert("❌ Failed to save JCN: " + (data?.error || res.statusText));
       }
     } catch (err) {
-      console.error("Error saving JCN:", err);
+      console.error("❌ Network/server error while saving JCN:", err);
       alert("❌ Failed to save JCN due to network or server error");
     }
   };

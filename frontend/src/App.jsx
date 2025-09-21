@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline, AppBar, Toolbar, Typography, Box } from "@mui/material";
@@ -22,6 +22,25 @@ const theme = createTheme({
 });
 
 export default function App() {
+  const [inspectionHorizon, setInspectionHorizon] = useState(100);
+  const [inspections, setInspections] = useState([]);
+
+  const fetchInspections = async () => {
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/inspections/planning?horizon=${inspectionHorizon}`
+      );
+      const data = await res.json();
+      setInspections(data.map((row, i) => ({ id: i + 1, ...row })));
+    } catch (err) {
+      console.error("❌ Error fetching inspections:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchInspections();
+  }, [inspectionHorizon]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
