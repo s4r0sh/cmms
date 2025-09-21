@@ -86,11 +86,12 @@ export default function Inspections() {
                 onChange={(e) => setHorizon(e.target.value)}
                 sx={{ color: "#fff" }}
               >
-                <MenuItem value={30}>30 days</MenuItem>
-                <MenuItem value={60}>60 days</MenuItem>
-                <MenuItem value={90}>90 days</MenuItem>
-                <MenuItem value={100}>100 days</MenuItem>
-                <MenuItem value={180}>180 days</MenuItem>
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value={30}>30 units</MenuItem>
+                <MenuItem value={60}>60 units</MenuItem>
+                <MenuItem value={90}>90 units</MenuItem>
+                <MenuItem value={100}>100 units</MenuItem>
+                <MenuItem value={180}>180 units</MenuItem>
               </Select>
             </FormControl>
           </Box>

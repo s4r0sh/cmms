@@ -1,7 +1,17 @@
 // Aircraft.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
-import { Grid, Button, Box, Typography, Paper } from "@mui/material";
+import {
+  Grid,
+  Button,
+  Box,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Typography,
+  Paper,
+} from "@mui/material";
 
 // ✅ Aircraft component
 export default function Aircraft({ refreshKey }) {
@@ -86,27 +96,22 @@ export default function Aircraft({ refreshKey }) {
             <Typography variant="subtitle1" sx={{ color: "secondary.main" }}>
               Squadron Filter
             </Typography>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setSquadron("Sqn 39")}
-            >
-              Squadron 39
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setSquadron("Sqn 49")}
-            >
-              Squadron 49
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => setSquadron("Sqn 51")}
-            >
-              Squadron 51
-            </Button>
+            <FormControl fullWidth>
+              <InputLabel id="squadron-label" sx={{ color: "#fff" }}>
+                Squadron
+              </InputLabel>
+              <Select
+                labelId="squadron-label"
+                value={squadron || ""}
+                onChange={(e) => setSquadron(e.target.value)}
+                sx={{ color: "#fff" }}
+              >
+                <MenuItem value="">All Sqns</MenuItem>
+                <MenuItem value="Sqn 39">Sqn 39</MenuItem>
+                <MenuItem value="Sqn 49">Sqn 49</MenuItem>
+                <MenuItem value="Sqn 51">Sqn 51</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         </Grid>
       </Grid>
