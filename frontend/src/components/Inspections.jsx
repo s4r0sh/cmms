@@ -10,6 +10,8 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
+import axios from "axios";
+import { CalendarCheck, CalendarX } from "lucide-react";
 
 export default function Inspections() {
   const [rows, setRows] = useState([]);
@@ -71,7 +73,71 @@ export default function Inspections() {
       flex: 1,
       minWidth: 120,
     },
+    {
+      field: "schedule",
+      headerName: "Schedule",
+      flex: 0.5,
+      sortable: false,
+      renderCell: (params) => {
+        const isScheduled = params.row.scheduled;
+        const inspectionId = params.row.inspection_id;
+        const aircraftId = params.row.aircraft_id;
+
+        return (
+          <Box
+            onClick={() =>
+              handleToggleSchedule(inspectionId, aircraftId, isScheduled)
+            }
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: isScheduled ? "#ff6666" : "#39FF14",
+            }}
+          >
+            {isScheduled ? (
+              <CalendarX size={20} />
+            ) : (
+              <CalendarCheck size={20} />
+            )}
+          </Box>
+        );
+      },
+    },
   ];
+
+  const handleToggleSchedule = async (
+    inspectionId,
+    aircraftId,
+    isScheduled
+  ) => {
+    try {
+      if (!isScheduled) {
+        console.log("📦 Scheduling attempt:", {
+          inspectionId,
+          aircraftId,
+          isScheduled,
+        });
+
+        // Schedule inspection
+        await axios.post(`/api/inspections/${inspectionId}/schedule`, {
+          aircraft_id: aircraftId,
+        });
+      } else {
+        // Cancel schedule
+        await axios.delete(`/api/inspections/${inspectionId}/schedule`, {
+          data: { aircraft_id: aircraftId },
+        });
+      }
+
+      // Refresh the table after action
+      fetchInspections(); // assuming you already have this to reload data
+    } catch (err) {
+      console.error("Error toggling schedule:", err);
+      alert("Failed to update schedule");
+    }
+  };
 
   return (
     <Paper sx={{ p: 2, mb: 4, bgcolor: "background.paper" }}>
@@ -87,12 +153,18 @@ export default function Inspections() {
               columns={columns}
               pageSize={5}
               slots={{ toolbar: GridToolbar }}
+              getRowClassName={(params) =>
+                params.row.scheduled ? "scheduled" : ""
+              }
               sx={{
                 border: "1px solid #ff00ff",
                 color: "#fff",
                 "& .MuiDataGrid-columnHeaders": {
                   backgroundColor: "#1f2937",
                   color: "#ff00ff",
+                },
+                "& .MuiDataGrid-row.scheduled": {
+                  backgroundColor: "rgba(0, 255, 0, 0.15)",
                 },
               }}
             />

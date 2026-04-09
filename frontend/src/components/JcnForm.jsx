@@ -12,11 +12,14 @@ import {
   IconButton,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import { ataCodes, ataName } from "../utils/ataCodes";
 
 export default function JcnForm() {
   const [mode, setMode] = useState("create");
   const [jcnNo, setJcnNo] = useState("");
   const [aircraftId, setAircraftId] = useState("");
+  const [workUnitCode, setWorkUnitCode] = useState("");
+
   const [maintenanceType, setMaintenanceType] = useState("");
   const [inspections, setInspections] = useState([]);
   const [inspectionId, setInspectionId] = useState("");
@@ -33,6 +36,22 @@ export default function JcnForm() {
     trigger_type: "",
     interval_value: "",
   });
+  const [scheduledInspections, setScheduledInspections] = useState([]);
+  const [scheduledJcns, setScheduledJcns] = useState([]);
+
+  // const ataCodes = [
+  //   { code: "21", name: "Air Conditioning" },
+  //   { code: "24", name: "Electrical Power" },
+  //   { code: "27", name: "Flight Controls" },
+  //   { code: "28", name: "Fuel" },
+  //   { code: "32", name: "Landing Gear" },
+  //   { code: "34", name: "Navigation" },
+  //   { code: "36", name: "Pneumatics" },
+  //   { code: "49", name: "APU" },
+  //   { code: "71", name: "Powerplant" },
+  //   { code: "78", name: "Exhaust" },
+  //   { code: "80", name: "Starting" },
+  // ];
 
   // Load aircraft
   useEffect(() => {
@@ -44,8 +63,8 @@ export default function JcnForm() {
 
   // Load inspections if scheduled
   useEffect(() => {
-    if (maintenanceType === "scheduled") {
-      fetch("http://localhost:5000/api/inspections")
+    if (maintenanceType === "scheduled" && aircraftId) {
+      fetch(`http://localhost:5000/api/inspections?aircraft_id=${aircraftId}`)
         .then((res) => res.json())
         .then(setInspections)
         .catch((err) => console.error("Error loading inspections:", err));
@@ -53,7 +72,19 @@ export default function JcnForm() {
       setInspectionId("");
       setInspections([]);
     }
-  }, [maintenanceType]);
+  }, [maintenanceType, aircraftId]);
+
+  // Load pending scheduled inspections (for Create New JCN dropdown)
+  useEffect(() => {
+    if (mode === "create") {
+      fetch("http://localhost:5000/api/inspections/scheduled/pending")
+        .then((res) => res.json())
+        .then(setScheduledJcns)
+        .catch((err) =>
+          console.error("Error loading pending scheduled JCNs:", err)
+        );
+    }
+  }, [mode]);
 
   // Load open JCNS if updating
   useEffect(() => {
@@ -73,6 +104,8 @@ export default function JcnForm() {
         setSelectedJcnData(jcn);
         setJcnNo(jcn.jcn_no || "");
         setAircraftId(jcn.aircraft_id ? String(jcn.aircraft_id) : "");
+        setWorkUnitCode(jcn.work_unit_code || "");
+
         setMaintenanceType(jcn.maintenance_type || "");
         setDiscrepancy(jcn.discrepancy || "");
         setCorrectiveAction(jcn.corrective_action || "");
@@ -89,12 +122,24 @@ export default function JcnForm() {
     }
   }, [selectedJcn, jcns]);
 
+  // Load scheduled inspections (for dropdown)
+  useEffect(() => {
+    fetch("http://localhost:5000/api/inspections/scheduled")
+      .then((res) => res.json())
+      .then(setScheduledInspections)
+      .catch((err) =>
+        console.error("Error loading scheduled inspections:", err)
+      );
+  }, []);
+
   const resetForm = () => {
     setMode("create");
     setSelectedJcn("");
     setSelectedJcnData(null);
     setJcnNo("");
     setAircraftId("");
+    setWorkUnitCode("");
+
     setMaintenanceType("");
     setDiscrepancy("");
     setCorrectiveAction("");
@@ -105,16 +150,20 @@ export default function JcnForm() {
 
   const saveJcn = async (close = false) => {
     try {
-      // 🔹 Build payload
-      const payload = {
-        jcn_no: jcnNo,
-        aircraft_id: aircraftId ? parseInt(aircraftId, 10) : null,
-        maintenance_type: maintenanceType,
-        discrepancy: discrepancy || null,
-        corrective_action: correctiveAction || null,
-        inspection_id: maintenanceType === "scheduled" ? inspectionId : null,
-        close,
-      };
+      // Build payload
+      let payload = close
+        ? { corrective_action: correctiveAction || null, close: true }
+        : {
+            jcn_no: jcnNo,
+            aircraft_id: aircraftId ? parseInt(aircraftId, 10) : null,
+            work_unit_code: workUnitCode || null,
+            maintenance_type: maintenanceType,
+            discrepancy: discrepancy || null,
+            corrective_action: correctiveAction || null,
+            inspection_id:
+              maintenanceType === "scheduled" ? inspectionId : null,
+            close: false,
+          };
 
       // 🔹 Add custom inspection if any
       if (showCustomInspection && customInspection.name) {
@@ -135,7 +184,6 @@ export default function JcnForm() {
             }`;
 
       const method = mode === "create" || close ? "POST" : "PUT";
-
       // 🔹 Request
       const res = await fetch(url, {
         method,
@@ -143,12 +191,11 @@ export default function JcnForm() {
         body: JSON.stringify(payload),
       });
 
-      // Try parsing response (in case server returns empty body)
+      // ✅ Only parse JSON if response has content-type
       let data = null;
-      try {
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
         data = await res.json();
-      } catch {
-        data = null;
       }
 
       if (res.ok) {
@@ -216,21 +263,43 @@ export default function JcnForm() {
           <InputLabel sx={{ color: "#00fff7" }}>Select JCN</InputLabel>
           <Select
             value={selectedJcn}
-            onChange={(e) => setSelectedJcn(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedJcn(val);
+
+              // If a scheduled JCN was chosen, preload its info
+              const scheduled = scheduledJcns.find((j) => j.jcn_no === val);
+              if (scheduled) {
+                setMode("create");
+                setJcnNo(scheduled.jcn_no);
+                setAircraftId(String(scheduled.aircraft_id));
+                setInspectionId(String(scheduled.inspection_id));
+                setMaintenanceType("scheduled");
+              }
+            }}
             sx={{ color: "#fff" }}
           >
             <MenuItem value="">
               <em>-- Select JCN --</em>
             </MenuItem>
-            {jcns.map((j) => (
-              <MenuItem key={j.id} value={String(j.id)}>
-                {j.jcn_no} - {j.aircraft_type} {j.aircraft_variant} (
-                {j.maintenance_type}){" "}
-                {j.maintenance_type === "unscheduled"
-                  ? `: ${j.discrepancy}`
-                  : ""}
-              </MenuItem>
-            ))}
+
+            <optgroup label="Scheduled JCNs">
+              {scheduledJcns.map((j) => (
+                <MenuItem key={j.jcn_no} value={j.jcn_no}>
+                  {j.jcn_no} — {j.aircraft_name || `AC#${j.aircraft_id}`}{" "}
+                  (Scheduled)
+                </MenuItem>
+              ))}
+            </optgroup>
+
+            <optgroup label="Open JCNs">
+              {jcns.map((j) => (
+                <MenuItem key={j.id} value={String(j.id)}>
+                  {j.jcn_no} - {j.aircraft_type} {j.aircraft_variant} (
+                  {j.maintenance_type})
+                </MenuItem>
+              ))}
+            </optgroup>
           </Select>
         </FormControl>
       )}
@@ -246,54 +315,144 @@ export default function JcnForm() {
         gap={3}
       >
         {/* JCN Number */}
-        <TextField
-          label="JCN Number"
-          variant="outlined"
-          value={jcnNo}
-          onChange={(e) => setJcnNo(e.target.value)}
-          sx={{
-            input: { color: "#fff" },
-            label: {
-              color:
-                isLockedBeforeSelect || isLockedAfterSelect
-                  ? "#888"
-                  : "#00fff7",
-            },
-          }}
-          disabled={isLockedBeforeSelect || isLockedAfterSelect}
-        />
+        {/* JCN Number */}
+        {mode === "create" ? (
+          <FormControl fullWidth>
+            <InputLabel sx={{ color: "#00fff7" }}>
+              Select Scheduled Inspection (optional)
+            </InputLabel>
+            <Select
+              value={inspectionId}
+              onChange={(e) => {
+                const selected = scheduledJcns.find(
+                  (s) => String(s.scheduled_id) === e.target.value
+                );
+                if (selected) {
+                  setInspectionId(selected.inspection_id);
+                  setAircraftId(String(selected.aircraft_id));
+                  setMaintenanceType("scheduled");
+                  // Generate formatted JCN (replace AUTO)
+                  setJcnNo(
+                    `SCH-${
+                      selected.tail_number
+                    }-${selected.inspection_name.replace(
+                      /\s+/g,
+                      "-"
+                    )}-${Date.now()}`
+                  );
+                } else {
+                  setInspectionId("");
+                  setAircraftId("");
+                  setMaintenanceType("");
+                  setJcnNo("");
+                }
+              }}
+              sx={{ color: "#fff" }}
+            >
+              <MenuItem value="">
+                <em>— None —</em>
+              </MenuItem>
+              {scheduledJcns.length > 0 ? (
+                scheduledJcns.map((s) => (
+                  <MenuItem key={s.scheduled_id} value={String(s.scheduled_id)}>
+                    {s.tail_number} | {s.inspection_name} — {s.scheduled_date}
+                  </MenuItem>
+                ))
+              ) : (
+                <MenuItem disabled>No pending scheduled inspections</MenuItem>
+              )}
+            </Select>
+          </FormControl>
+        ) : (
+          <TextField
+            label="JCN Number"
+            variant="outlined"
+            value={jcnNo}
+            onChange={(e) => setJcnNo(e.target.value)}
+            sx={{ input: { color: "#fff" }, label: { color: "#00fff7" } }}
+            disabled={isLockedBeforeSelect || isLockedAfterSelect}
+          />
+        )}
 
         {/* Aircraft */}
         {mode === "update" && selectedJcnData ? (
-          <TextField
-            label="Aircraft"
-            value={`${selectedJcnData.tail_number} (${selectedJcnData.aircraft_type} ${selectedJcnData.aircraft_variant})`}
-            InputProps={{ readOnly: true }}
-            sx={{ input: { color: "#888" }, label: { color: "#888" } }}
-          />
+          <Box display="flex" gap={2} flexWrap="wrap" alignItems="center">
+            <TextField
+              label="Aircraft"
+              value={`${selectedJcnData.tail_number} (${selectedJcnData.aircraft_type} ${selectedJcnData.aircraft_variant})`}
+              InputProps={{ readOnly: true }}
+              sx={{
+                flex: 2,
+                input: { color: "#888" },
+                label: { color: "#888" },
+              }}
+            />
+            <TextField
+              label="Work Unit Code (ATA)"
+              value={
+                selectedJcnData.work_unit_code
+                  ? `${selectedJcnData.work_unit_code} – ${ataName(
+                      selectedJcnData.work_unit_code
+                    )}`
+                  : ""
+              }
+              InputProps={{ readOnly: true }}
+              sx={{
+                flex: 1,
+                input: { color: "#888" },
+                label: { color: "#888" },
+              }}
+            />
+          </Box>
         ) : (
-          <FormControl fullWidth>
-            <InputLabel
-              sx={{ color: isLockedBeforeSelect ? "#888" : "#00fff7" }}
-            >
-              Aircraft
-            </InputLabel>
-            <Select
-              value={aircraftId}
-              onChange={(e) => setAircraftId(e.target.value)}
-              disabled={isLockedBeforeSelect}
-              sx={{ color: isLockedBeforeSelect ? "#888" : "#fff" }}
-            >
-              <MenuItem value="">
-                <em>-- Select Aircraft --</em>
-              </MenuItem>
-              {aircraft.map((a) => (
-                <MenuItem key={a.id} value={String(a.id)}>
-                  {a.tail_number} ({a.type} {a.variant})
+          <Box display="flex" gap={2}>
+            <FormControl sx={{ flex: 2 }}>
+              <InputLabel
+                sx={{ color: isLockedBeforeSelect ? "#888" : "#00fff7" }}
+              >
+                Aircraft
+              </InputLabel>
+              <Select
+                value={aircraftId}
+                onChange={(e) => setAircraftId(e.target.value)}
+                disabled={isLockedBeforeSelect}
+                sx={{ color: isLockedBeforeSelect ? "#888" : "#fff" }}
+              >
+                <MenuItem value="">
+                  <em>-- Select Aircraft --</em>
                 </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+                {aircraft.map((a) => (
+                  <MenuItem key={a.id} value={String(a.id)}>
+                    {a.tail_number} ({a.type} {a.variant})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* WUC / ATA Code */}
+            <FormControl sx={{ flex: 1 }}>
+              <InputLabel
+                sx={{ color: isLockedBeforeSelect ? "#888" : "#00fff7" }}
+              >
+                Work Unit Code (ATA)
+              </InputLabel>
+              <Select
+                value={workUnitCode}
+                onChange={(e) => setWorkUnitCode(e.target.value)}
+                disabled={isLockedBeforeSelect}
+                sx={{ color: isLockedBeforeSelect ? "#888" : "#fff" }}
+              >
+                <MenuItem value="">
+                  <em>-- Select ATA Code --</em>
+                </MenuItem>
+                {ataCodes.map((ata) => (
+                  <MenuItem key={ata.code} value={ata.code}>
+                    {ata.code} – {ata.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         )}
 
         {/* Maintenance Type */}
@@ -322,6 +481,28 @@ export default function JcnForm() {
               </MenuItem>
               <MenuItem value="scheduled">Scheduled</MenuItem>
               <MenuItem value="unscheduled">Unscheduled</MenuItem>
+            </Select>
+          </FormControl>
+        )}
+        {/* Linked Scheduled Inspection (optional) */}
+        {maintenanceType === "scheduled" && (
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel sx={{ color: "#00fff7" }}>
+              Linked Scheduled Inspection (optional)
+            </InputLabel>
+            <Select
+              value={inspectionId}
+              onChange={(e) => setInspectionId(e.target.value)}
+              sx={{ color: "#fff" }}
+            >
+              <MenuItem value="">
+                <em>— None —</em>
+              </MenuItem>
+              {scheduledInspections.map((insp) => (
+                <MenuItem key={insp.id} value={insp.id}>
+                  {insp.name} — {insp.aircraft_name || `AC#${insp.aircraft_id}`}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
         )}
@@ -421,22 +602,24 @@ export default function JcnForm() {
                 flex: 1,
               }}
             />
-            <TextField
-              label="Trigger Type"
-              variant="outlined"
-              value={customInspection.trigger_type}
-              onChange={(e) =>
-                setCustomInspection((prev) => ({
-                  ...prev,
-                  trigger_type: e.target.value,
-                }))
-              }
-              sx={{
-                input: { color: "#fff" },
-                label: { color: "#00fff7" },
-                flex: 1,
-              }}
-            />
+            <FormControl sx={{ flex: 1 }}>
+              <InputLabel sx={{ color: "#00fff7" }}>Trigger Type</InputLabel>
+              <Select
+                value={customInspection.trigger_type}
+                onChange={(e) =>
+                  setCustomInspection((prev) => ({
+                    ...prev,
+                    trigger_type: e.target.value,
+                  }))
+                }
+                sx={{ color: "#fff" }}
+              >
+                <MenuItem value="FH">FH</MenuItem>
+                <MenuItem value="FC">FC</MenuItem>
+                <MenuItem value="FL">FL</MenuItem>
+                <MenuItem value="Calendar">Calendar</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         )}
 

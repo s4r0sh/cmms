@@ -144,6 +144,18 @@ CREATE TABLE inspection_history (
   CONSTRAINT unique_aircraft_inspection UNIQUE (aircraft_id, inspection_id)
 );
 
+-- Scheduled Inspections (planning-only reservations)
+CREATE TABLE IF NOT EXISTS scheduled_inspections (
+  id SERIAL PRIMARY KEY,
+  inspection_id INTEGER NOT NULL REFERENCES inspections(id) ON DELETE CASCADE,
+  aircraft_id INTEGER NOT NULL REFERENCES aircraft(id) ON DELETE CASCADE,
+  jcn_no VARCHAR(60) NOT NULL UNIQUE,
+  scheduled_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  cancelled BOOLEAN DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_inspections_ins_ac ON scheduled_inspections (inspection_id, aircraft_id);
+
 -- =========================
 -- Seed Data
 -- =========================

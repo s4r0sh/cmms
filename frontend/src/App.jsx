@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline, AppBar, Toolbar, Typography, Box } from "@mui/material";
 import Aircraft from "./components/Aircraft";
 import Inspections from "./components/Inspections";
+import DefectTrend from "./components/DefectTrend";
 import JcnForm from "./components/JcnForm"; // new
 
 const theme = createTheme({
@@ -75,6 +76,7 @@ export default function App() {
                 <>
                   <Aircraft />
                   <Inspections />
+                  <DefectTrend />
                 </>
               }
             />

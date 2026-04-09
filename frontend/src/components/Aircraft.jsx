@@ -13,11 +13,72 @@ import {
   Paper,
 } from "@mui/material";
 
+import { BarChart } from "@mui/x-charts/BarChart";
+
 // ✅ Aircraft component
 export default function Aircraft({ refreshKey }) {
   const [rows, setRows] = useState([]);
   const [squadron, setSquadron] = useState(null);
   const [reason, setReason] = useState(null);
+  const [statusSummary, setStatusSummary] = useState([]);
+
+  // ✅ Compute summary either for selected Sqn or overall fleet
+  const selectedSummary = squadron
+    ? statusSummary.find((s) => s.squadron === squadron)
+    : statusSummary.length
+    ? statusSummary.reduce(
+        (acc, s) => ({
+          squadron: "All Sqns",
+          serviceable: acc.serviceable + Number(s.serviceable || 0),
+          scheduled: acc.scheduled + Number(s.scheduled || 0),
+          unscheduled: acc.unscheduled + Number(s.unscheduled || 0),
+          micap: acc.micap + Number(s.micap || 0),
+          allotted_out: acc.allotted_out + Number(s.allotted_out || 0),
+        }),
+        {
+          squadron: "All Sqns",
+          serviceable: 0,
+          scheduled: 0,
+          unscheduled: 0,
+          micap: 0,
+          allotted_out: 0,
+        }
+      )
+    : null;
+
+  const total =
+    selectedSummary &&
+    Number(selectedSummary.serviceable) +
+      Number(selectedSummary.scheduled) +
+      Number(selectedSummary.unscheduled) +
+      Number(selectedSummary.micap) +
+      Number(selectedSummary.allotted_out);
+
+  const serviceabilityRate =
+    selectedSummary && total
+      ? (selectedSummary.serviceable / total) * 100
+      : null;
+  const scheduledRate =
+    selectedSummary && total ? (selectedSummary.scheduled / total) * 100 : null;
+  const unscheduledRate =
+    selectedSummary && total
+      ? (selectedSummary.unscheduled / total) * 100
+      : null;
+  const micapRate =
+    selectedSummary && total ? (selectedSummary.micap / total) * 100 : null;
+  const allottedOutRate =
+    selectedSummary && total
+      ? (selectedSummary.allotted_out / total) * 100
+      : null;
+
+  const fetchStatusSummary = useCallback(() => {
+    fetch("http://localhost:5000/api/aircraft/status-summary")
+      .then((res) => res.json())
+      .then((data) => setStatusSummary(data))
+      .catch((err) =>
+        console.error("❌ Error fetching squadron summary:", err)
+      );
+  }, []);
 
   // ✅ Fetch aircraft data
   const fetchAircraft = useCallback(() => {
@@ -49,13 +110,18 @@ export default function Aircraft({ refreshKey }) {
   // ✅ Run fetch on squadron change OR refresh trigger
   useEffect(() => {
     fetchAircraft();
-  }, [squadron, reason, refreshKey, fetchAircraft]);
+    fetchStatusSummary();
+  }, [squadron, reason, refreshKey, fetchAircraft, fetchStatusSummary]);
 
-  // ✅ Polling every 2 seconds
+  //Poll every 2 seconds
+
   useEffect(() => {
-    const interval = setInterval(fetchAircraft, 2000);
+    const interval = setInterval(() => {
+      fetchAircraft();
+      fetchStatusSummary();
+    }, 2000);
     return () => clearInterval(interval);
-  }, [fetchAircraft]);
+  }, [fetchAircraft, fetchStatusSummary]);
 
   // ✅ Columns aligned with backend
   const columns = [
@@ -143,6 +209,131 @@ export default function Aircraft({ refreshKey }) {
             </FormControl>
           </Box>
         </Grid>
+      </Grid>
+
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          mt: 4,
+          alignItems: "stretch",
+          display: "flex",
+          flexWrap: "nowrap", // ✅ prevents wrapping
+          overflowX: "auto", // ✅ allows scroll if needed on smaller screens
+        }}
+      >
+        {statusSummary.map((sqn, idx) => {
+          const colors = ["#00ffff", "#ff00ff", "#ffcc00"];
+          const color = colors[idx % colors.length];
+          return (
+            <Grid item xs={2.8} key={idx} sx={{ flex: "1 1 auto" }}>
+              <Paper sx={{ p: 2, bgcolor: "#1f2937", height: "100%" }}>
+                <Typography sx={{ color, mb: 1 }}>{sqn.squadron}</Typography>
+                <BarChart
+                  height={300}
+                  series={[
+                    {
+                      data: [
+                        Number(sqn.scheduled),
+                        Number(sqn.unscheduled),
+                        Number(sqn.micap),
+                        Number(sqn.allotted_out),
+                      ],
+                      label: "Aircraft Count",
+                      color,
+                    },
+                  ]}
+                  xAxis={[
+                    {
+                      data: ["Sch", "Unsch", "MICAP", "A/O"],
+                      scaleType: "band",
+                    },
+                  ]}
+                  yAxis={[
+                    {
+                      tickMinStep: 1,
+                      valueFormatter: (v) => Math.floor(v),
+                    },
+                  ]}
+                />
+              </Paper>
+            </Grid>
+          );
+        })}
+
+        {selectedSummary && (
+          <Grid item xs={2.5}>
+            <Paper
+              sx={{
+                p: 3,
+                bgcolor: "#1f2937",
+                color: "#fff",
+                textAlign: "center",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {/* ✅ Main Rate */}
+              <Typography
+                variant="h2"
+                sx={{
+                  color: "#00ff00",
+                  fontWeight: 900,
+                  lineHeight: 1.1,
+                  mb: 1.5,
+                }}
+              >
+                {serviceabilityRate
+                  ? `${serviceabilityRate.toFixed(1)}%`
+                  : "--"}
+              </Typography>
+
+              {/* ✅ Subtext: Serviceability Rate + Squadron name */}
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "#bbb",
+                  mb: 3,
+                  fontStyle: "italic",
+                }}
+              >
+                Serviceability Rate — {selectedSummary.squadron}
+              </Typography>
+
+              {/* ✅ Divider Line */}
+              <Box
+                sx={{
+                  width: "60%",
+                  height: "1px",
+                  backgroundColor: "#444",
+                  mb: 3,
+                }}
+              />
+
+              {/* ✅ Breakdown Section */}
+              <Box sx={{ textAlign: "left", width: "100%", maxWidth: 180 }}>
+                <Typography sx={{ color: "#ffcc00" }}>
+                  Scheduled:{" "}
+                  {scheduledRate ? `${scheduledRate.toFixed(1)}%` : "--"}
+                </Typography>
+                <Typography sx={{ color: "#ff00ff" }}>
+                  Unscheduled:{" "}
+                  {unscheduledRate ? `${unscheduledRate.toFixed(1)}%` : "--"}
+                </Typography>
+                <Typography sx={{ color: "#ff6600" }}>
+                  MICAP: {micapRate ? `${micapRate.toFixed(1)}%` : "--"}
+                </Typography>
+                <Typography sx={{ color: "#00bfff" }}>
+                  Allotted Out:{" "}
+                  {allottedOutRate ? `${allottedOutRate.toFixed(1)}%` : "--"}
+                </Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        )}
       </Grid>
     </Paper>
   );

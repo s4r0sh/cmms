@@ -105,13 +105,44 @@ router.get("/:id", async (req, res) => {
 });
 
 // =============================
-// GET all inspections
+// GET all inspections with next due
 // =============================
 router.get("/inspections", async (req, res) => {
   try {
+    const { aircraft_id } = req.query;
+
     const result = await pool.query(
-      "SELECT id, name, trigger_type, interval_value FROM inspections ORDER BY trigger_type, interval_value"
+      `
+SELECT i.id, i.name, i.trigger_type, i.interval_value,
+       COALESCE(
+         CASE
+           WHEN i.trigger_type='FH' THEN ih.fh_at_inspection + i.interval_value
+           WHEN i.trigger_type='FC' THEN ih.fc_at_inspection + i.interval_value
+           WHEN i.trigger_type='FL' THEN ih.fl_at_inspection + i.interval_value
+           WHEN i.trigger_type='CALENDAR' THEN ih.performed_on + (i.interval_value || ' days')::interval
+         END,
+         -- fallback for inspections not in history yet
+         CASE
+           WHEN i.trigger_type='FH' THEN a.current_fh + i.interval_value
+           WHEN i.trigger_type='FC' THEN a.current_fc + i.interval_value
+           WHEN i.trigger_type='FL' THEN a.current_fl + i.interval_value
+           WHEN i.trigger_type='CALENDAR' THEN NOW() + (i.interval_value || ' days')::interval
+         END
+       ) AS next_due
+FROM inspections i
+JOIN aircraft a ON a.id = $1
+LEFT JOIN inspection_history ih
+       ON i.id = ih.inspection_id AND ih.aircraft_id = $1
+WHERE i.is_custom = FALSE
+   OR i.id IN (
+       SELECT inspection_id FROM maintenance_jcn
+       WHERE aircraft_id = $1
+   )
+ORDER BY next_due
+      `,
+      [aircraft_id]
     );
+
     res.json(result.rows);
   } catch (err) {
     console.error("❌ Error fetching inspections:", err);
@@ -148,25 +179,44 @@ router.post("/", async (req, res) => {
       custom_interval_value
     ) {
       const intervalInt = parseInt(custom_interval_value, 10);
-      if (isNaN(intervalInt) || intervalInt <= 0) {
-        return res
-          .status(400)
-          .json({ error: "Custom interval must be a positive number" });
-      }
 
-      try {
+      // ✅ Check if identical custom inspection already exists
+      const existing = await pool.query(
+        `SELECT id FROM inspections
+     WHERE name = $1 AND trigger_type = $2 AND interval_value = $3 AND is_custom = TRUE`,
+        [custom_inspection_name, custom_trigger_type, intervalInt]
+      );
+
+      if (existing.rows.length > 0) {
+        inspection_id = existing.rows[0].id;
+        console.log("♻️ Reusing existing custom inspection id:", inspection_id);
+      } else {
+        // Create new custom inspection if not found
         const customInsert = await pool.query(
           `INSERT INTO inspections (name, trigger_type, interval_value, is_custom)
-           VALUES ($1,$2,$3, TRUE) RETURNING id`,
+        VALUES ($1, $2, $3, TRUE) RETURNING id`,
           [custom_inspection_name, custom_trigger_type, intervalInt]
         );
         inspection_id = customInsert.rows[0].id;
-        console.log("✅ Custom inspection created with id:", inspection_id);
-      } catch (err) {
-        console.error("❌ Failed to create custom inspection:", err);
-        return res
-          .status(500)
-          .json({ error: "Failed to create custom inspection" });
+        console.log("✅ Some problem is there:", inspection_id);
+      }
+    }
+
+    // -------------------------------
+    // 2️⃣ Duplicate check for scheduled inspections
+    // -------------------------------
+    if (maintenance_type === "scheduled" && inspection_id) {
+      const duplicateCheck = await pool.query(
+        `SELECT id FROM maintenance_jcn
+         WHERE aircraft_id = $1 AND inspection_id = $2 AND status = 'OPEN'`,
+        [aircraft_id, inspection_id]
+      );
+
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(400).json({
+          error:
+            "A JCN for this scheduled inspection is already open for this aircraft",
+        });
       }
     }
 
@@ -361,41 +411,49 @@ router.post("/:id/close", async (req, res) => {
     );
 
     if (inspection_id) {
-      // Fetch the inspection type
+      // Fetch inspection type
       const insRes = await pool.query(
         `SELECT trigger_type FROM inspections WHERE id=$1`,
         [inspection_id]
       );
 
       if (insRes.rows.length) {
-        const trigger_type = insRes.rows[0].trigger_type;
+        const trigger_type = insRes.rows[0].trigger_type.toUpperCase();
 
+        // Fetch current aircraft counters
+        const acRes = await pool.query(
+          `SELECT current_fh, current_fc, current_fl FROM aircraft WHERE id=$1`,
+          [aircraft_id]
+        );
+        const ac = acRes.rows[0];
+
+        let column, value;
         if (trigger_type === "CALENDAR") {
-          // Calendar inspection → update performed_on to now
-          await pool.query(
-            `UPDATE inspection_history 
-         SET performed_on = NOW() 
-         WHERE aircraft_id=$1 AND inspection_id=$2`,
-            [aircraft_id, inspection_id]
-          );
-        } else {
-          // Numeric → reset last_value to current aircraft counter
-          const acRes = await pool.query(
-            `SELECT current_fh, current_fc, current_fl FROM aircraft WHERE id=$1`,
-            [aircraft_id]
-          );
-          let last_value = null;
-          if (trigger_type === "FH") last_value = acRes.rows[0].current_fh;
-          if (trigger_type === "FC") last_value = acRes.rows[0].current_fc;
-          if (trigger_type === "FL") last_value = acRes.rows[0].current_fl;
-
-          await pool.query(
-            `UPDATE inspection_history 
-         SET last_value = $1 
-         WHERE aircraft_id=$2 AND inspection_id=$3`,
-            [last_value, aircraft_id, inspection_id]
-          );
+          column = "performed_on";
+          value = new Date();
+        } else if (trigger_type === "FH") {
+          column = "fh_at_inspection";
+          value = ac.current_fh;
+        } else if (trigger_type === "FC") {
+          column = "fc_at_inspection";
+          value = ac.current_fc;
+        } else if (trigger_type === "FL") {
+          column = "fl_at_inspection";
+          value = ac.current_fl;
         }
+
+        // Insert or update inspection_history
+        await pool.query(
+          `INSERT INTO inspection_history (aircraft_id, inspection_id, ${column})
+       VALUES ($1, $2, $3)
+       ON CONFLICT (aircraft_id, inspection_id) DO UPDATE
+       SET ${column} = EXCLUDED.${column}`,
+          [aircraft_id, inspection_id, value]
+        );
+
+        console.log(
+          `✅ Inspection history updated for inspection ${inspection_id}`
+        );
       }
     }
 

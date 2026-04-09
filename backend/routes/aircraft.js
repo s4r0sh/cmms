@@ -34,9 +34,15 @@ router.get("/", async (req, res) => {
       json_build_object(
         'reason', j.maintenance_type,
         'details', CASE 
-                    WHEN j.maintenance_type='scheduled' THEN i.name
-                    ELSE j.discrepancy || ' | ' || j.corrective_action
-                  END,
+  WHEN j.maintenance_type='scheduled' THEN i.name
+  ELSE COALESCE(j.discrepancy, '') || 
+       CASE 
+         WHEN j.corrective_action IS NOT NULL AND j.discrepancy IS NOT NULL THEN ' | ' 
+         ELSE '' 
+       END || 
+       COALESCE(j.corrective_action, '')
+END
+,
         'time', j.created_at
       ) ORDER BY j.created_at DESC
     ) AS jcns
@@ -99,6 +105,38 @@ router.get("/all", async (req, res) => {
   } catch (err) {
     console.error("❌ Error fetching all aircraft:", err);
     res.status(500).json({ error: "Failed to fetch all aircraft" });
+  }
+});
+
+// ======================================
+// 📊 Squadron aircraft status summary
+// ======================================
+router.get("/status-summary", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        a.squadron,
+        COUNT(*) AS total_aircraft,
+        COUNT(*) FILTER (WHERE a.operational_status IS DISTINCT FROM 'unserviceable') AS serviceable,
+        COUNT(*) FILTER (
+          WHERE a.operational_status = 'unserviceable'
+            AND LOWER(TRIM(a.unserviceable_reason)) = 'scheduled'
+        ) AS scheduled,
+        COUNT(*) FILTER (
+          WHERE a.operational_status = 'unserviceable'
+            AND LOWER(TRIM(a.unserviceable_reason)) = 'unscheduled'
+        ) AS unscheduled,
+        0 AS micap,
+        0 AS allotted_out
+      FROM aircraft a
+      GROUP BY a.squadron
+      ORDER BY a.squadron;
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching squadron status summary:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

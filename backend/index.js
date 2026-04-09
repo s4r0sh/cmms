@@ -36,6 +36,10 @@ app.use("/api/aircraft", aircraftRouter);
 const inspectionsRouter = require("./routes/inspections");
 app.use("/api/inspections", inspectionsRouter);
 
+// Defects routes
+const defectsRouter = require("./routes/defects");
+app.use("/api/defects", defectsRouter);
+
 // JCN routes
 const jcnsRouter = require("./routes/jcns");
 app.use("/api/jcns", jcnsRouter);
